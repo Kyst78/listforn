@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🏠 ApartMap – ที่พักแถวธนบุรี</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root {
+  --bg: #0d1117;
+  --surface: #161b27;
+  --surface2: #1e2435;
+  --surface3: #252b3f;
+  --accent: #5b8dee;
+  --accent2: #a78bfa;
+  --green: #3dd68c;
+  --yellow: #f9c74f;
+  --red: #f26857;
+  --text: #e2e8f0;
+  --muted: #7a8499;
+  --border: rgba(91,141,238,0.13);
+  --shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; font-family:'Sarabun',sans-serif; background:var(--bg); color:var(--text); overflow:hidden; }
+
+header {
+  position:fixed; top:0; left:0; right:0; z-index:1000;
+  height:52px;
+  background:rgba(13,17,23,0.92);
+  backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:12px; padding:0 18px;
+}
+.logo { font-family:'Space Grotesk',sans-serif; font-size:16px; font-weight:700;
+  background:linear-gradient(120deg,var(--accent),var(--accent2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; white-space:nowrap; }
+.tagline { font-size:12px; color:var(--muted); }
+.header-right { margin-left:auto; display:flex; align-items:center; gap:10px; }
+.badge { background:rgba(91,141,238,0.15); border:1px solid rgba(91,141,238,0.3); color:var(--accent);
+  padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600; font-family:'Space Grotesk',sans-serif; white-space:nowrap; }
+
+.layout { display:flex; height:100vh; padding-top:52px; }
+
+.sidebar {
+  width:300px; flex-shrink:0;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  display:flex; flex-direction:column;
+  overflow:hidden;
+}
+.search-box { padding:12px; border-bottom:1px solid var(--border); flex-shrink:0; }
+.search-inner { position:relative; }
+.search-inner input {
+  width:100%; background:var(--surface2);
+  border:1px solid var(--border); border-radius:9px;
+  padding:8px 12px 8px 34px;
+  color:var(--text); font-family:'Sarabun',sans-serif; font-size:13.5px;
+  outline:none; transition:border-color .2s;
+}
+.search-inner input:focus { border-color:var(--accent); }
+.search-inner input::placeholder { color:var(--muted); }
+.search-icon { position:absolute; left:10px; top:50%; transform:translateY(-50%); font-size:14px; pointer-events:none; }
+
+.legend-row {
+  padding:8px 12px; display:flex; gap:12px; align-items:center;
+  border-bottom:1px solid var(--border); flex-shrink:0; flex-wrap:wrap;
+}
+.leg { display:flex; align-items:center; gap:4px; font-size:11px; color:var(--muted); }
+.leg-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+
+.list { overflow-y:auto; flex:1; padding:6px 8px; scrollbar-width:thin; scrollbar-color:var(--surface3) transparent; }
+.list::-webkit-scrollbar { width:4px; }
+.list::-webkit-scrollbar-thumb { background:var(--surface3); border-radius:4px; }
+
+.card {
+  padding:10px 12px; border-radius:11px; cursor:pointer;
+  border:1px solid transparent; margin-bottom:3px;
+  transition:all .18s; display:flex; gap:10px; align-items:flex-start;
+}
+.card:hover { background:var(--surface2); border-color:var(--border); }
+.card.active { background:rgba(91,141,238,0.1); border-color:rgba(91,141,238,0.35); }
+
+.card-num {
+  width:22px; height:22px; border-radius:6px;
+  background:var(--surface3); display:flex; align-items:center; justify-content:center;
+  font-size:10px; font-weight:700; font-family:'Space Grotesk',sans-serif;
+  color:var(--muted); flex-shrink:0; margin-top:1px;
+}
+.card.active .card-num { background:rgba(91,141,238,0.25); color:var(--accent); }
+.card-body { flex:1; min-width:0; }
+.card-name { font-size:13px; font-weight:600; line-height:1.35; color:var(--text); }
+.card-addr { font-size:11.5px; color:var(--muted); margin-top:2px; line-height:1.4; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.card-rating { display:inline-flex; align-items:center; gap:3px; margin-top:4px; font-size:11px; }
+.no-results { text-align:center; padding:36px 16px; color:var(--muted); font-size:13px; }
+
+.map-wrap { flex:1; position:relative; }
+#map { width:100%; height:100%; background:#0d1117; }
+
+.home-tooltip {
+  background:var(--surface2) !important;
+  border:1px solid rgba(255,107,107,0.4) !important;
+  color:var(--text) !important;
+  font-family:'Sarabun',sans-serif !important;
+  font-size:12px !important;
+  border-radius:8px !important;
+  padding:4px 10px !important;
+  box-shadow:0 4px 12px rgba(0,0,0,0.4) !important;
+}
+.home-tooltip::before { border-top-color:rgba(255,107,107,0.4) !important; }
+.leaflet-control-attribution { background:rgba(13,17,23,0.75)!important; color:var(--muted)!important; font-size:9px!important; }
+.leaflet-control-attribution a { color:var(--muted)!important; }
+.leaflet-control-zoom a { background:var(--surface2)!important; color:var(--text)!important; border-color:var(--border)!important; }
+.leaflet-control-zoom a:hover { background:var(--surface3)!important; }
+
+.info-card {
+  position:absolute; bottom:24px; left:50%; transform:translateX(-50%);
+  width:340px; max-width:calc(100% - 24px);
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:16px; padding:18px 18px 14px;
+  box-shadow:var(--shadow);
+  z-index:800;
+  display:none;
+}
+.info-card.show { display:block; animation:popUp .22s cubic-bezier(.34,1.56,.64,1); }
+@keyframes popUp {
+  from { opacity:0; transform:translateX(-50%) translateY(14px) scale(.97); }
+  to   { opacity:1; transform:translateX(-50%) translateY(0) scale(1); }
+}
+.info-close {
+  position:absolute; top:10px; right:10px;
+  background:var(--surface2); border:none; color:var(--muted);
+  width:24px; height:24px; border-radius:7px; cursor:pointer; font-size:13px;
+  display:flex; align-items:center; justify-content:center; transition:color .15s;
+}
+.info-close:hover { color:var(--text); }
+.info-name { font-size:15px; font-weight:700; line-height:1.3; padding-right:22px; }
+.info-addr { font-size:12px; color:var(--muted); margin-top:5px; line-height:1.5; }
+.info-meta { display:flex; gap:14px; margin-top:8px; flex-wrap:wrap; }
+.info-meta-item { display:flex; align-items:center; gap:4px; font-size:12px; color:var(--muted); }
+.info-meta-item b { color:var(--text); }
+.info-actions { display:flex; gap:7px; margin-top:12px; }
+.btn {
+  flex:1; padding:9px 8px; border-radius:10px; border:none;
+  cursor:pointer; font-family:'Sarabun',sans-serif; font-size:13px; font-weight:600;
+  display:flex; align-items:center; justify-content:center; gap:5px;
+  text-decoration:none; transition:all .18s;
+}
+.btn-primary { background:var(--accent); color:#fff; }
+.btn-primary:hover { filter:brightness(1.12); }
+.btn-ghost { background:var(--surface2); color:var(--text); border:1px solid var(--border); }
+.btn-ghost:hover { border-color:var(--accent); }
+
+@media(max-width:650px) {
+  .sidebar { width:100%; height:40vh; }
+  .layout { flex-direction:column; }
+  .map-wrap { flex:1; min-height:0; }
+  .tagline { display:none; }
+  .info-card { bottom:10px; width:calc(100% - 20px); }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🏠 ApartMap</div>
+  <div class="tagline">ที่พักแถวธนบุรี–สาทร</div>
+  <div class="header-right">
+    <div class="badge" id="countBadge">20 แห่ง</div>
+  </div>
+</header>
+
+<div class="layout">
+  <div class="sidebar">
+    <div class="search-box">
+      <div class="search-inner">
+        <span class="search-icon">🔍</span>
+        <input id="searchInput" type="text" placeholder="ค้นหาชื่อที่พัก..." oninput="filterList(this.value)">
+      </div>
+    </div>
+    <div class="legend-row">
+      <div class="leg"><div class="leg-dot" style="background:#3dd68c"></div>≥4.5</div>
+      <div class="leg"><div class="leg-dot" style="background:#5b8dee"></div>≥4.0</div>
+      <div class="leg"><div class="leg-dot" style="background:#f9c74f"></div>≥3.5</div>
+      <div class="leg"><div class="leg-dot" style="background:#f26857"></div>&lt;3.5</div>
+    </div>
+    <div class="list" id="apartList"></div>
+  </div>
+
+  <div class="map-wrap">
+    <div id="map"></div>
+    <div class="info-card" id="infoCard">
+      <button class="info-close" onclick="closeInfo()">✕</button>
+      <div class="info-name" id="iName"></div>
+      <div class="info-addr" id="iAddr"></div>
+      <div class="info-meta">
+        <div class="info-meta-item" id="iRating"></div>
+        <div class="info-meta-item" id="iHours"></div>
+      </div>
+      <div class="info-actions">
+        <a class="btn btn-primary" id="iMapBtn" href="#" target="_blank">🗺️ เปิด Google Maps</a>
+        <button class="btn btn-ghost" onclick="closeInfo()">ปิด</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const PLACES = [
+  { id:0,  name:"APNS Apartment อำไพนพศรีอพาต์เมนท์",       addr:"233 ซ.กรุงธนบุรี 6 เขตคลองสาน",       lat:13.7195, lng:100.5022, rating:4.2, cnt:14,  hours:"จ–ส 12:00–21:00", placeId:"ChIJx3qh8_KZ4jAROP_dHW8LC44" },
+  { id:1,  name:"The RYHHTON Residence - Private Estate -",    addr:"428/28 ซ.กรุงธนบุรี 6 เขตคลองสาน",   lat:13.7183, lng:100.4998, rating:4.8, cnt:77,  hours:"ทุกวัน 08:00–21:00", placeId:"ChIJO8ueAxaZ4jARlCwKyOe4CQM" },
+  { id:2,  name:"ซันเฮาส์ อพาร์ทเม้น",                       addr:"บุคคโล เขตธนบุรี",                    lat:13.7116, lng:100.4878, rating:5.0, cnt:4,   hours:"–", placeId:"ChIJg6s3TwCZ4jARVaPUgPFNLzQ" },
+  { id:3,  name:"ลุมพินี เพลส สุขสวัสดิ์ – พระราม 2",        addr:"144 ซ.สุขสวัสดิ์ เขตจอมทอง",         lat:13.6914, lng:100.4809, rating:4.3, cnt:120, hours:"ทุกวัน 08:30–18:00", placeId:"ChIJq9dtY3-Y4jARvXYKHLas4gs" },
+  { id:4,  name:"Sleep สบาย อพาร์ตเม้นต์",                   addr:"ซ.สมเด็จพระเจ้าตาก เขตธนบุรี",       lat:13.7184, lng:100.4818, rating:4.3, cnt:8,   hours:"–", placeId:"ChIJ6VyqiAyZ4jARgmRVnvDkw-o" },
+  { id:5,  name:"เอส.ที. แมนชั่น (ติดถ.ตากสิน)",             addr:"58 ซ.สมเด็จพระเจ้าตาก เขตธนบุรี",    lat:13.7173, lng:100.4896, rating:4.5, cnt:10,  hours:"–", placeId:"ChIJmZDmB-mZ4jARbdMHUQZWL3Y" },
+  { id:6,  name:"วงเวียนใหญ่แมนชั่น",                        addr:"ซ.สมเด็จพระเจ้าตากสิน 7 เขตธนบุรี",  lat:13.7222, lng:100.4923, rating:4.1, cnt:39,  hours:"เปิด 24 ชม.", placeId:"ChIJH4l3q4uY4jARewCXY3b-BLQ" },
+  { id:7,  name:"สปีดวัน (Speed One)",                        addr:"บุคคโล เขตธนบุรี",                    lat:13.7143, lng:100.4800, rating:3.8, cnt:8,   hours:"–", placeId:"ChIJEbbYOeKZ4jARC8llpw_0r5g" },
+  { id:8,  name:"เปี่ยมรัก เรสซิเดนซ์",                      addr:"ซ.เทอดไท 33 เขตธนบุรี",               lat:13.7038, lng:100.4807, rating:3.9, cnt:98,  hours:"จ–ศ 09:00–19:00", placeId:"ChIJGQgFAGKY4jAR3Nn3DvhcLvA" },
+  { id:9,  name:"รีเจ้นท์ โฮม วุฒากาศ",                     addr:"ตลาดพลู เขตธนบุรี",                   lat:13.7126, lng:100.4722, rating:4.6, cnt:31,  hours:"ทุกวัน 08:30–17:30", placeId:"ChIJn94JBs2Z4jARPmXETpfwFww" },
+  { id:10, name:"Box 212",                                     addr:"212 ซ.เจริญนคร 30 เขตคลองสาน",        lat:13.7184, lng:100.4986, rating:4.8, cnt:4,   hours:"–", placeId:"ChIJC_htgj2Z4jARWfIsOjQYAbg" },
+  { id:11, name:"คอนโดลุมพินี ราษฎร์บูรณะ",                  addr:"ซ.ราษฎร์บูรณะ 8 เขตราษฎร์บูรณะ",    lat:13.6869, lng:100.4923, rating:4.3, cnt:214, hours:"ทุกวัน 09:00–18:00", placeId:"ChIJo8bcJXmi4jARN-x5yggEJaw" },
+  { id:12, name:"เค.อาร์.ลิฟวิ่ง เจริญนคร (K.R. Living)",   addr:"119/1 ซ.เจริญนคร 12 เขตคลองสาน",    lat:13.7232, lng:100.5067, rating:4.8, cnt:4,   hours:"–", placeId:"ChIJ2YetCACZ4jARUWqMORr3g0g" },
+  { id:13, name:"บ้าน ณ เอม อพารทเม้นท์",                    addr:"ซ.โพสุวรรณ เขตคลองสาน",               lat:13.7242, lng:100.5041, rating:4.4, cnt:35,  hours:"ทุกวัน 08:00–18:00", placeId:"ChIJnaVdgOiY4jARh_OxasA58LE" },
+  { id:14, name:"บีบี โกลเด้นเพลส ใกล้ MRT ท่าพระ",          addr:"วัดท่าพระ เขตบางกอกใหญ่",             lat:13.7321, lng:100.4735, rating:4.5, cnt:11,  hours:"–", placeId:"ChIJbwxzGGSZ4jARfivPtO0yLWY" },
+  { id:15, name:"ธนพิชญ์ อพาร์ทเม้นท์ (Thanapich)",          addr:"พระราม 2 ซ.3 เขตจอมทอง",              lat:13.6811, lng:100.4826, rating:3.7, cnt:64,  hours:"ทุกวัน 08:30–21:00", placeId:"ChIJh1e5t4ei4jAReoVcBeqrA3E" },
+  { id:16, name:"สมบุญ 2 อาพาร์ทเม้นท์ เดอะมอลล์ท่าพระ",    addr:"ซ.จรัญสนิทวงศ์ 3 เขตบางกอกใหญ่",    lat:13.7344, lng:100.4684, rating:4.6, cnt:17,  hours:"–", placeId:"ChIJHZc_e0yY4jARpx8NHIxWefY" },
+  { id:17, name:"เดอะเลียง เรสซิเด้นซ์ (สุขสวัสดิ์ 23)",    addr:"ซ.สุขสวัสดิ์ 23 เขตราษฎร์บูรณะ",    lat:13.6816, lng:100.4971, rating:4.9, cnt:7,   hours:"จ–ศ 08:00–18:00", placeId:"ChIJa06xHs-j4jAR572CC7xKusM" },
+  { id:18, name:"บ้านมั่งมีทวีสุข",                           addr:"เขตคลองสาน กรุงเทพฯ",                  lat:13.7342, lng:100.5049, rating:3.7, cnt:11,  hours:"–", placeId:"ChIJ77xoSOCY4jAR6YRS2jzm9sY" },
+  { id:19, name:"เซนต์วิวเฮาส์ (500ม. BTS สุรศักดิ์)",       addr:"ซ.เจริญรัช 1 เขตสาทร",                lat:13.7159, lng:100.5231, rating:3.6, cnt:352, hours:"–", placeId:"ChIJ3e56UsmY4jARmvbEMMc_ldc" },
+];
+
+function ratingColor(r) {
+  if (r >= 4.5) return '#3dd68c';
+  if (r >= 4.0) return '#5b8dee';
+  if (r >= 3.5) return '#f9c74f';
+  return '#f26857';
+}
+function stars(r) {
+  return '★'.repeat(Math.floor(r)) + (r - Math.floor(r) >= 0.5 ? '☆' : '');
+}
+function makeIcon(p, active=false) {
+  const c = active ? '#5b8dee' : ratingColor(p.rating);
+  const s = active ? 38 : 30;
+  const sh = Math.round(s * 1.35);
+  const n = p.id + 1;
+  const fs = n > 9 ? s*0.28 : s*0.34;
+  return L.divIcon({
+    html: `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${sh}">
+      <defs><filter id="dr${p.id}"><feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="rgba(0,0,0,.7)"/></filter></defs>
+      <path d="M${s/2} 1 C${s*0.13} 1 1 ${s*0.38} 1 ${s*0.5} C1 ${s*0.88} ${s/2} ${sh} ${s/2} ${sh} C${s/2} ${sh} ${s-1} ${s*0.88} ${s-1} ${s*0.5} C${s-1} ${s*0.38} ${s*0.87} 1 ${s/2} 1Z"
+        fill="${c}" filter="url(#dr${p.id})"/>
+      <circle cx="${s/2}" cy="${s*0.5}" r="${s*0.28}" fill="rgba(0,0,0,0.22)"/>
+      <text x="${s/2}" y="${s*0.5+fs*0.38}" text-anchor="middle" dominant-baseline="middle"
+        font-family="Space Grotesk,sans-serif" font-size="${fs}" font-weight="700" fill="white">${n}</text>
+    </svg>`,
+    className: '',
+    iconSize: [s, sh],
+    iconAnchor: [s/2, sh],
+  });
+}
+
+// init map with dark tiles
+const map = L.map('map', { zoomControl: true }).setView([13.710, 100.490], 13);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '© <a href="https://carto.com/attributions">CARTO</a> © <a href="https://openstreetmap.org/copyright">OSM</a>',
+  subdomains: 'abcd', maxZoom: 19
+}).addTo(map);
+
+const lMarkers = {};
+let activeId = null;
+
+PLACES.forEach(p => {
+  const m = L.marker([p.lat, p.lng], { icon: makeIcon(p) }).addTo(map);
+  m.on('click', () => selectPlace(p.id));
+  lMarkers[p.id] = m;
+});
+
+// Home marker (current location)
+const homeIcon = L.divIcon({
+  html: `<div style="
+    width:40px; height:40px;
+    background:linear-gradient(135deg,#ff6b6b,#ff4757);
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:20px;
+    box-shadow:0 0 0 4px rgba(255,107,107,0.25), 0 4px 14px rgba(0,0,0,0.5);
+    border:2.5px solid rgba(255,255,255,0.3);
+    animation:homePulse 2s ease-in-out infinite;
+  ">🏠</div>
+  <style>
+    @keyframes homePulse {
+      0%,100% { box-shadow:0 0 0 4px rgba(255,107,107,0.25),0 4px 14px rgba(0,0,0,.5); }
+      50%      { box-shadow:0 0 0 10px rgba(255,107,107,0.1),0 4px 14px rgba(0,0,0,.5); }
+    }
+  </style>`,
+  className: '',
+  iconSize: [40, 40],
+  iconAnchor: [20, 20],
+});
+L.marker([13.699077, 100.484373], { icon: homeIcon, zIndexOffset: 1000 }).addTo(map)
+  .bindTooltip('📍 บ้านนัทจัง', { permanent: false, direction: 'top', className: 'home-tooltip' });
+
+function selectPlace(id) {
+  const p = PLACES[id];
+  if (activeId !== null) {
+    lMarkers[activeId].setIcon(makeIcon(PLACES[activeId], false));
+    document.getElementById('card-'+activeId)?.classList.remove('active');
+  }
+  lMarkers[id].setIcon(makeIcon(p, true));
+  activeId = id;
+  map.flyTo([p.lat, p.lng], Math.max(map.getZoom(), 15), { duration: 0.7 });
+
+  document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
+  const card = document.getElementById('card-'+id);
+  if (card) { card.classList.add('active'); card.scrollIntoView({ block:'nearest', behavior:'smooth' }); }
+
+  document.getElementById('iName').textContent = p.name;
+  document.getElementById('iAddr').textContent = '📍 ' + p.addr;
+  document.getElementById('iRating').innerHTML =
+    `<span style="color:${ratingColor(p.rating)}">${stars(p.rating)}</span>&nbsp;<b>${p.rating}</b>&nbsp;<span style="color:var(--muted)">(${p.cnt} รีวิว)</span>`;
+  document.getElementById('iHours').innerHTML = p.hours !== '–'
+    ? `🕐 <b>${p.hours}</b>` : '';
+  document.getElementById('iMapBtn').href =
+    `https://www.google.com/maps/place/?q=place_id:${p.placeId}`;
+
+  const panel = document.getElementById('infoCard');
+  panel.classList.remove('show');
+  void panel.offsetWidth;
+  panel.classList.add('show');
+}
+
+function closeInfo() {
+  document.getElementById('infoCard').classList.remove('show');
+  if (activeId !== null) {
+    lMarkers[activeId].setIcon(makeIcon(PLACES[activeId], false));
+    document.getElementById('card-'+activeId)?.classList.remove('active');
+    activeId = null;
+  }
+}
+
+map.on('click', () => closeInfo());
+
+function renderList(arr) {
+  document.getElementById('countBadge').textContent = arr.length + ' แห่ง';
+  const el = document.getElementById('apartList');
+  if (!arr.length) { el.innerHTML = '<div class="no-results">🔍 ไม่พบที่พักที่ค้นหา</div>'; return; }
+  el.innerHTML = arr.map(p => `
+    <div class="card ${activeId===p.id?'active':''}" id="card-${p.id}" onclick="selectPlace(${p.id})">
+      <div class="card-num">${p.id+1}</div>
+      <div class="card-body">
+        <div class="card-name">${p.name}</div>
+        <div class="card-addr">${p.addr}</div>
+        <div class="card-rating" style="color:${ratingColor(p.rating)}">
+          ${stars(p.rating)} <span style="font-weight:700">${p.rating}</span>
+          <span style="color:var(--muted)"> · ${p.cnt} รีวิว</span>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function filterList(q) {
+  const v = q.trim().toLowerCase();
+  const arr = PLACES.filter(p => p.name.toLowerCase().includes(v) || p.addr.toLowerCase().includes(v));
+  renderList(arr);
+  PLACES.forEach(p => {
+    if (arr.some(f => f.id===p.id)) map.addLayer(lMarkers[p.id]);
+    else map.removeLayer(lMarkers[p.id]);
+  });
+}
+
+renderList(PLACES);
+</script>
+</body>
+</html>
